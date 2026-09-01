@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, BarChart3, CircleDot, Info, Zap } from 'lucide-react'
+import { AlertTriangle, BarChart3, CircleDot, CloudOff, Info, Zap } from 'lucide-react'
 import { Badge, Tabs, Spinner } from '../../components/ui'
 import { debugCircuit } from '../../lib/quantum/ai'
 import { useCircuitStore } from '../../store/circuitStore'
@@ -12,6 +12,8 @@ type Tab = 'histogram' | 'state' | 'bloch' | 'meta'
 export default function ResultsPanel() {
   const result = useCircuitStore((s) => s.result)
   const circuit = useCircuitStore((s) => s.circuit)
+  const source = useCircuitStore((s) => s.source)
+  const backendError = useCircuitStore((s) => s.backendError)
   const [tab, setTab] = useState<Tab>('histogram')
   const [wire, setWire] = useState(0)
 
@@ -92,7 +94,13 @@ export default function ResultsPanel() {
           {warnings.length > 0 ? (
             <div className="flex items-center gap-1.5 text-amber-300"><AlertTriangle size={13} /> AI debugger flagged {warnings.length} issue{warnings.length > 1 ? 's' : ''} — ask the tutor to explain.</div>
           ) : (
-            <div className="flex items-center gap-1.5 text-slate-400"><Spinner className="h-3 w-3" /> Simulated on {result.backend} · statevector engine</div>
+            <div className="flex items-center gap-1.5 text-slate-400">
+              {source === 'backend' ? (
+                <><Spinner className="h-3 w-3" /> Simulated on the Qiskit backend ({result.backend})</>
+              ) : (
+                <><CloudOff size={13} /> Local fallback engine — API {backendError ? 'error' : 'offline'}</>
+              )}
+            </div>
           )}
         </div>
       )}

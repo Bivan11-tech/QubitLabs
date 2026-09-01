@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  Aperture, FlaskConical, FolderOpen, Plus, Save, Send, Settings2, Check,
+  Aperture, FlaskConical, FolderOpen, Plus, Save, Send, Settings2, Check, CloudOff,
 } from 'lucide-react'
 import { Tabs, Primary, Ghost } from '../../components/ui'
+import { checkBackendHealth } from '../../lib/backend'
 import { BACKENDS, GATE_META } from '../../lib/quantum/types'
 import type { GateType } from '../../lib/quantum/types'
 import { useCircuitStore } from '../../store/circuitStore'
@@ -24,6 +25,8 @@ export default function LabPage() {
   const setShots = useCircuitStore((s) => s.setShots)
   const running = useCircuitStore((s) => s.running)
   const run = useCircuitStore((s) => s.run)
+  const source = useCircuitStore((s) => s.source)
+  const backendError = useCircuitStore((s) => s.backendError)
   const newCircuit = useCircuitStore((s) => s.newCircuit)
   const saveCircuit = useCircuitStore((s) => s.saveCircuit)
   const saveCount = useCircuitStore((s) => s.saveCount)
@@ -34,6 +37,19 @@ export default function LabPage() {
   const [stampType, setStampType] = useState<GateType | null>(null)
   const [showSaved, setShowSaved] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [apiOnline, setApiOnline] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const check = async () => {
+      const ok = await checkBackendHealth()
+      if (alive) setApiOnline(ok)
+    }
+    void check()
+    return () => { alive = false }
+  }, [])
+
+  const backendReachable = source === 'backend' ? true : apiOnline
 
   const selectedGate = circuit.gates.find((g) => g.id === selectedGateId)
 
@@ -77,6 +93,24 @@ const notify = (msg: string) => {
               onChange={(e) => setShots(parseInt(e.target.value || '1', 10))}
             />
           </div>
+          <span
+            title={backendError ?? undefined}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+              backendReachable === null
+                ? 'border-slate-700/50 bg-mid-800/60 text-slate-400'
+                : backendReachable
+                  ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'
+                  : 'border-amber-400/40 bg-amber-400/10 text-amber-300'
+            }`}
+          >
+            {backendReachable === null ? (
+              'checking…'
+            ) : backendReachable ? (
+              <><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Qiskit API online</>
+            ) : (
+              <><CloudOff size={13} /> Local simulator</>
+            )}
+          </span>
           <Ghost onClick={() => { newCircuit(); notify('New circuit ready') }} className="px-3 py-2 text-sm"><Plus size={15} /> New</Ghost>
           <Ghost onClick={() => { saveCircuit(); notify('Circuit saved') }} className="px-3 py-2 text-sm">
             <Save size={15} /> Save{saveCount > 0 ? ` (${saveCount})` : ''}

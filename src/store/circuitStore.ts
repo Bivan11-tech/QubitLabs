@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { simulate } from '../lib/api'
+import { simulateWithSource } from '../lib/api'
+import type { SimulationSource } from '../lib/backend'
 import type { BackendId, QuantumCircuit, QuantumGate, SimulationResult } from '../lib/quantum/types'
 import { circuitToQiskit, qiskitToCircuit } from '../lib/quantum/qiskit'
 
@@ -14,6 +15,8 @@ interface CircuitState {
   code: string
   result: SimulationResult | null
   running: boolean
+  source: SimulationSource
+  backendError: string | null
   selectedGateId: string | null
   saved: QuantumCircuit[]
   saveCount: number
@@ -67,6 +70,8 @@ export const useCircuitStore = create<CircuitState>()(
       code: '',
       result: null,
       running: false,
+      source: 'local',
+      backendError: null,
       selectedGateId: null,
       saved: [],
       saveCount: 0,
@@ -117,8 +122,8 @@ export const useCircuitStore = create<CircuitState>()(
         set({ circuit: { ...makeCircuit(), id: c.id }, result: null, selectedGateId: null, mode: 'visual' })
       },
 
-      setBackend: (b) => set({ backend: b, result: null }),
-      setShots: (n) => set({ shots: Math.max(1, Math.min(100000, n)), result: null }),
+      setBackend: (b) => set({ backend: b, result: null, source: 'local', backendError: null }),
+      setShots: (n) => set({ shots: Math.max(1, Math.min(100000, n)), result: null, source: 'local', backendError: null }),
       select: (gateGateId) => set({ selectedGateId: gateGateId }),
 
       setMode: (m) => {
@@ -139,12 +144,8 @@ export const useCircuitStore = create<CircuitState>()(
       run: async () => {
         if (get().running) return
         set({ running: true })
-        try {
-          const result = await simulate(get().circuit, get().backend, get().shots)
-          set({ result, running: false })
-        } catch {
-          set({ running: false })
-        }
+        const { result, source, backendError } = await simulateWithSource(get().circuit, get().backend, get().shots)
+        set({ result, running: false, source, backendError: backendError ?? null })
       },
 
       saveCircuit: () => {

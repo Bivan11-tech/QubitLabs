@@ -121,6 +121,7 @@ def test_result_contract_fields():
         "circuit_depth",
         "total_gates",
         "gate_breakdown",
+        "entangled",
         "shots",
     ]:
         assert field in res
@@ -129,3 +130,8 @@ def test_result_contract_fields():
     assert res["total_gates"] == 2
     assert res["gate_breakdown"] == {"h": 1, "cx": 1}
     assert res["qasm"].startswith("OPENQASM")
+    assert res["entangled"] is True
+
+def test_single_qubit_not_entangled():
+    res = _run([g("h", targets=[0])], num_qubits=1, shots=100)
+    assert res["entangled"] is False

@@ -155,6 +155,7 @@ def run_circuit(qc: QuantumCircuit, shots: int) -> dict:
     counts = sim["measurement_counts"]
 
     bloch = compute_bloch_vectors(unitary)
+    entangled = reduced_purity(unitary) < 0.9999
 
     return {
         "num_qubits": num_qubits,
@@ -166,5 +167,6 @@ def run_circuit(qc: QuantumCircuit, shots: int) -> dict:
         "circuit_depth": circuit_depth,
         "total_gates": total_gates,
         "gate_breakdown": gate_breakdown,
+        "entangled": entangled,
         "shots": shots,
     }

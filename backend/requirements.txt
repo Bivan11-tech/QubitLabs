@@ -1,0 +1,14 @@
+# QubitLabs backend — Python 3.8 compatible pins
+# (Qiskit 1.x + Aer 1.x require Python >= 3.9; on 3.8 use the 0.46/pinned set)
+qiskit==0.46.3
+qiskit-terra==0.46.3
+qiskit-aer==0.14.2
+numpy==1.24.4
+scipy==1.10.1
+fastapi==0.124.4
+uvicorn[standard]==0.33.0
+pydantic==2.10.6
+google-generativeai==0.1.0rc1
+python-dotenv==1.0.1
+pytest==8.3.5
+httpx==0.28.1

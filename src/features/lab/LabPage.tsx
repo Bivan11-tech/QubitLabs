@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
-  Aperture, FlaskConical, FolderOpen, Plus, Save, Send, Settings2, Check, CloudOff,
+  Aperture, FlaskConical, FolderOpen, Plus, Save, Send, Settings2, Check, CloudOff, BookOpen, Loader2,
 } from 'lucide-react'
 import { Tabs, Primary, Ghost } from '../../components/ui'
-import { checkBackendHealth } from '../../lib/backend'
+import { checkBackendHealth, fetchTemplate, type TemplateGate } from '../../lib/backend'
 import { BACKENDS, GATE_META } from '../../lib/quantum/types'
-import type { GateType } from '../../lib/quantum/types'
+import type { GateType, QuantumCircuit, QuantumGate } from '../../lib/quantum/types'
 import { useCircuitStore } from '../../store/circuitStore'
 import GatePalette from './GatePalette'
 import CircuitCanvas from './CircuitCanvas'
@@ -14,6 +14,47 @@ import AITutorPanel from './AITutorPanel'
 import ResultsPanel from './ResultsPanel'
 
 type Mode = 'visual' | 'code'
+
+const TEMPLATE_OPTIONS = [
+  { id: 'bell', label: 'Bell State' },
+  { id: 'ghz', label: 'GHZ State' },
+  { id: 'deutsch-jozsa', label: 'Deutsch–Jozsa' },
+  { id: 'teleportation', label: 'Teleportation' },
+  { id: 'grover', label: 'Grover Search' },
+  { id: 'qft', label: 'Quantum Fourier Transform' },
+]
+
+const BACKEND_GATE_MAP: Partial<Record<string, GateType>> = {
+  h: 'H', x: 'X', y: 'Y', z: 'Z', s: 'S', t: 'T', sdg: 'Sdg', tdg: 'Tdg',
+  rx: 'RX', ry: 'RY', rz: 'RZ',
+  cx: 'CX', cy: 'CY', cz: 'CZ', swap: 'SWAP',
+}
+
+function templateToCircuit(name: string, numQubits: number, gates: TemplateGate[]): QuantumCircuit {
+  const out: QuantumGate[] = []
+  const wireLast = new Map<number, number>()
+  for (let i = 0; i < gates.length; i++) {
+    const g = gates[i]
+    const type = BACKEND_GATE_MAP[g.name]
+    if (!type) continue
+    const isControlled = g.controls.length > 0
+    const qubits = isControlled ? [...g.controls, ...g.targets] : [...g.targets]
+    let moment = 0
+    for (const q of qubits) {
+      const last = wireLast.get(q) ?? -1
+      moment = Math.max(moment, last + 1)
+    }
+    for (const q of qubits) wireLast.set(q, moment)
+    out.push({
+      id: crypto.randomUUID(),
+      type,
+      qubits,
+      params: g.params.length > 0 ? [...g.params] : undefined,
+      moment,
+    })
+  }
+  return { id: crypto.randomUUID(), name, qubits: numQubits, gates: out }
+}
 
 export default function LabPage() {
   const circuit = useCircuitStore((s) => s.circuit)
@@ -38,6 +79,7 @@ export default function LabPage() {
   const [showSaved, setShowSaved] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [apiOnline, setApiOnline] = useState<boolean | null>(null)
+  const [loadingTemplate, setLoadingTemplate] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -53,9 +95,23 @@ export default function LabPage() {
 
   const selectedGate = circuit.gates.find((g) => g.id === selectedGateId)
 
-const notify = (msg: string) => {
+  const notify = (msg: string) => {
     setToast(msg)
-    setTimeout(() => setToast(null), 2000)
+    setTimeout(() => setToast(null), 2500)
+  }
+
+  const loadTemplate = async (algoId: string) => {
+    setLoadingTemplate(true)
+    try {
+      const res = await fetchTemplate(algoId)
+      const t = templateToCircuit(algoId, res.template.num_qubits, res.template.gates)
+      useCircuitStore.getState().loadCircuit(t)
+      notify(`Loaded template: ${TEMPLATE_OPTIONS.find((o) => o.id === algoId)?.label ?? algoId}`)
+    } catch {
+      notify('Failed to load template — is the backend running?')
+    } finally {
+      setLoadingTemplate(false)
+    }
   }
 
   return (
@@ -74,6 +130,18 @@ const notify = (msg: string) => {
           ]}
         />
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-lg border border-slate-700/50 bg-mid-800/60 px-3 py-1.5">
+            <BookOpen size={14} className="text-slate-400" />
+            <select
+              className="bg-transparent text-sm text-slate-200 outline-none"
+              value=""
+              onChange={(e) => { if (e.target.value) void loadTemplate(e.target.value) }}
+            >
+              <option value="" disabled>Templates…</option>
+              {TEMPLATE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+            {loadingTemplate && <Loader2 size={13} className="animate-spin text-accent-400" />}
+          </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-700/50 bg-mid-800/60 px-3 py-1.5">
             <Settings2 size={14} className="text-slate-400" />
             <select

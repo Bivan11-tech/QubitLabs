@@ -3,8 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Clock, FlaskConical, Lightbulb, RotateCcw, X, Zap } from 'lucide-react'
 import { Badge, Card, Ghost, Primary, Spinner } from '../../components/ui'
 import { findChallenge } from '../../data/challenges'
-import { simulate } from '../../lib/api'
-import type { QuantumCircuit, QuantumGate, SimulationResult } from '../../lib/quantum/types'
+import { submitChallenge } from '../../lib/backend'
+import type { QuantumCircuit, QuantumGate } from '../../lib/quantum/types'
 import { useCircuitStore } from '../../store/circuitStore'
 import { useProgressStore } from '../../store/progressStore'
 
@@ -36,7 +36,8 @@ export default function ChallengePage() {
   const [showHints, setShowHints] = useState(false)
   const [checks, setChecks] = useState<Check[] | null>(null)
   const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<SimulationResult | null>(null)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const [source, setSource] = useState<'backend' | 'local' | null>(null)
 
   if (!challenge) {
     return (
@@ -57,13 +58,24 @@ export default function ChallengePage() {
   const evaluate = async () => {
     setRunning(true)
     setChecks(null)
-    const res = await simulate(circuit, 'qiskit-aer', 4096)
-    const next = challenge.requirements.map((r) => ({ id: r.id, label: r.label, pass: r.check(circuit, res) }))
-    setResult(res)
-    setChecks(next)
-    setRunning(false)
-    if (next.every((n) => n.pass) && !done) {
-      completeChallenge(challenge.id, challenge.xp, challenge.badgeId)
+    setFeedback(null)
+    setSource(null)
+
+    try {
+      const res = await submitChallenge(challenge.id, circuit, 4096)
+      const next = res.checks.map((c) => ({ id: c.id, label: c.label, pass: c.passed }))
+      setChecks(next)
+      setFeedback(res.feedback)
+      setExecTime(null)
+      setSource('backend')
+      if (res.passed && !done) {
+        completeChallenge(challenge.id, challenge.xp, challenge.badgeId)
+      }
+    } catch {
+      setFeedback('Backend unavailable — start the API server to evaluate challenges.')
+      setSource('local')
+    } finally {
+      setRunning(false)
     }
   }
 
@@ -119,7 +131,7 @@ export default function ChallengePage() {
 
           {running && (
             <Card className="flex items-center gap-2 text-sm text-accent-300">
-              <Spinner className="h-4 w-4" /> Simulating your current Lab circuit with 4096 shots…
+              <Spinner className="h-4 w-4" /> Submitting circuit to Qiskit backend for evaluation…
             </Card>
           )}
 
@@ -129,8 +141,11 @@ export default function ChallengePage() {
                 <div className="text-sm font-bold">
                   {allPass ? <span className="text-emerald-300">🎉 Submission passed! +{challenge.xp} XP</span> : <span className="text-rose-300">Not quite — {passCount}/{challenge.requirements.length} criteria met</span>}
                 </div>
-                {result && <span className="text-xs text-slate-400">{result.shots} shots · {result.executionTime}s</span>}
+                {source && <span className="text-xs text-slate-400">{source === 'backend' ? 'Qiskit backend' : 'local'}</span>}
               </div>
+              {feedback && (
+                <p className="mt-2 text-xs text-slate-300">{feedback}</p>
+              )}
               {allPass && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Link to="/progress" className="btn-primary px-4 py-2 text-sm">View progress</Link>

@@ -1,3 +1,4 @@
+import Editor from '@monaco-editor/react'
 import { useCircuitStore } from '../../store/circuitStore'
 import { Primary, Ghost } from '../../components/ui'
 
@@ -22,12 +23,54 @@ export default function CodeEditor() {
           </Primary>
         </div>
       </div>
-      <textarea
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
-        spellCheck={false}
-        className="h-[380px] w-full resize-none rounded-xl border border-slate-700/50 bg-[#0a0e1c] p-4 font-mono text-[13px] leading-relaxed text-slate-100 outline-none focus:border-accent-400/50"
-      />
+      <div className="overflow-hidden rounded-xl border border-slate-700/50">
+        <Editor
+          height="380px"
+          defaultLanguage="python"
+          value={code}
+          onChange={(v) => setCode(v ?? '')}
+          theme="qubitlabs-dark"
+          options={{
+            minimap: { enabled: false },
+            fontSize: 13,
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            padding: { top: 12, bottom: 12 },
+            wordWrap: 'on',
+            tabSize: 2,
+            renderLineHighlight: 'gutter',
+            scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+            overviewRulerLanes: 0,
+            hideCursorInOverviewRuler: true,
+            overviewRulerBorder: false,
+            automaticLayout: true,
+          }}
+          beforeMount={(monaco) => {
+            monaco.editor.defineTheme('qubitlabs-dark', {
+              base: 'vs-dark',
+              inherit: true,
+              rules: [
+                { token: 'comment', foreground: '6b7280', fontStyle: 'italic' },
+                { token: 'keyword', foreground: '818cf8' },
+                { token: 'string', foreground: '34d399' },
+                { token: 'number', foreground: 'fbbf24' },
+                { token: 'type', foreground: '22d3ee' },
+              ],
+              colors: {
+                'editor.background': '#0a0e1c',
+                'editor.foreground': '#e2e8f0',
+                'editor.lineHighlightBackground': '#1e293b20',
+                'editor.selectionBackground': '#33415580',
+                'editorCursor.foreground': '#22d3ee',
+                'editorLineNumber.foreground': '#475569',
+                'editorLineNumber.activeForeground': '#94a3b8',
+                'editor.inactiveSelectionBackground': '#33415540',
+              },
+            })
+          }}
+        />
+      </div>
       <p className="text-[11px] text-slate-500">
         Supported subset: <code className="text-slate-400">qc = QuantumCircuit(n, n)</code>, h/x/y/z/s/t/sdg/tdg/rx/ry/rz/cx/cy/cz/swap, and qc.measure([...], [...]).
       </p>

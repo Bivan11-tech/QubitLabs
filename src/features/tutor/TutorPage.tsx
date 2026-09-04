@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Send, Sparkles, UserRound, BookOpen, GraduationCap } from 'lucide-react'
+import { Bot, Send, Sparkles, UserRound, BookOpen, GraduationCap, CloudOff } from 'lucide-react'
 import { Badge, MiniMarkdown, Spinner, Card } from '../../components/ui'
 import { answerQuestion, quickPrompts } from '../../lib/quantum/ai'
+import { explainCircuit, chatTutor, type ChatMessage } from '../../lib/backend'
 import { useAuthStore } from '../../store/authStore'
 import { useProgressStore } from '../../store/progressStore'
 import { useCircuitStore } from '../../store/circuitStore'
@@ -22,28 +23,56 @@ export default function TutorPage() {
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>(quickPrompts())
+  const [aiSource, setAiSource] = useState<'backend' | 'local'>('backend')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, thinking])
 
-  const ask = (question: string) => {
+  const ask = async (question: string) => {
     if (!question.trim() || thinking) return
     setMessages((m) => [...m, { role: 'user', text: question }])
     setInput('')
     setThinking(true)
-    setTimeout(() => {
+
+    const explainKeywords = ['explain my circuit', 'explain this circuit', 'what does my circuit', 'what do i have']
+    const isExplain = explainKeywords.some((k) => question.toLowerCase().includes(k))
+
+    if (isExplain && circuit.gates.length > 0) {
+      try {
+        const res = await explainCircuit(circuit)
+        setMessages((m) => [...m, { role: 'ai', text: res.ai_explanation }])
+        setAiSource('backend')
+        setSuggestions(quickPrompts())
+        setThinking(false)
+        return
+      } catch { /* fall through to chat/local */ }
+    }
+
+    const history: ChatMessage[] = messages.map((m) => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      content: m.text,
+    }))
+
+    try {
+      const res = await chatTutor(circuit, question, history)
+      setMessages((m) => [...m, { role: 'ai', text: res.ai_response }])
+      setAiSource('backend')
+      setSuggestions(quickPrompts())
+    } catch {
       const reply = answerQuestion({ question, circuit, result: result ?? undefined, skillLevel: user?.skillLevel })
       setMessages((m) => [...m, { role: 'ai', text: reply.text }])
       setSuggestions(reply.suggestions ?? [])
+      setAiSource('local')
+    } finally {
       setThinking(false)
-    }, 700)
+    }
   }
 
   const more = () => {
     if (suggestions.length === 0) return
-    ask(suggestions[0])
+    void ask(suggestions[0])
   }
 
   return (
@@ -56,6 +85,13 @@ export default function TutorPage() {
             <div className="flex items-center gap-2"><GraduationCap size={15} className="text-brand-300" /> Level: <b className="capitalize text-white">{user?.skillLevel ?? 'beginner'}</b></div>
             <div className="flex items-center gap-2"><BookOpen size={15} className="text-accent-300" /> {Object.values(completed).flat().length}/{TOTAL_LESSONS} lessons done</div>
             <div className="flex items-center gap-2"><Sparkles size={15} className="text-amber-300" /> {xp.toLocaleString()} XP · {streak}-day streak</div>
+            <div className="flex items-center gap-2">
+              {aiSource === 'backend' ? (
+                <span className="text-emerald-400 text-[11px]"><span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Gemini AI</span>
+              ) : (
+                <span className="text-amber-400 text-[11px]"><CloudOff size={11} className="inline" /> Local fallback</span>
+              )}
+            </div>
           </div>
         </Card>
         <Card>
@@ -66,7 +102,7 @@ export default function TutorPage() {
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {['Explain concept', 'Generate code', 'Debug circuit', 'Optimize', '7-day plan'].map((q) => (
-              <button key={q} onClick={() => ask(q)} className="chip text-[11px] transition hover:border-accent-400/60 hover:text-accent-200">{q}</button>
+              <button key={q} onClick={() => void ask(q)} className="chip text-[11px] transition hover:border-accent-400/60 hover:text-accent-200">{q}</button>
             ))}
           </div>
         </Card>
@@ -117,7 +153,7 @@ export default function TutorPage() {
         <div className="border-t border-slate-700/50 p-4">
           <div className="mb-2 flex flex-wrap gap-1.5">
             {suggestions.slice(0, 5).map((s) => (
-              <button key={s} onClick={() => ask(s)} className="chip text-[11px] transition hover:border-accent-400/60 hover:text-accent-200">{s}</button>
+              <button key={s} onClick={() => void ask(s)} className="chip text-[11px] transition hover:border-accent-400/60 hover:text-accent-200">{s}</button>
             ))}
             {suggestions.length > 0 && <button onClick={more} className="chip text-[11px] text-slate-500">more ▾</button>}
           </div>
@@ -126,10 +162,10 @@ export default function TutorPage() {
               className="input py-2.5"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') ask(input) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') void ask(input) }}
               placeholder="Ask anything — I already know what you're learning…"
             />
-            <button className="btn-primary h-11 w-11 shrink-0 p-0" onClick={() => ask(input)} aria-label="Send"><Send size={18} /></button>
+            <button className="btn-primary h-11 w-11 shrink-0 p-0" onClick={() => void ask(input)} aria-label="Send"><Send size={18} /></button>
           </div>
         </div>
       </div>

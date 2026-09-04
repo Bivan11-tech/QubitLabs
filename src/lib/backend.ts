@@ -143,3 +143,116 @@ export async function checkBackendHealth(): Promise<boolean> {
     return false
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  AI Tutor endpoints                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface ExplainCircuitResponse {
+  circuit_summary: {
+    num_qubits: number
+    circuit_depth: number
+    total_gates: number
+    gate_breakdown: Record<string, number>
+    has_entanglement: boolean
+    probabilities: Record<string, number>
+    qasm: string
+  }
+  ai_explanation: string
+}
+
+export async function explainCircuit(circuit: QuantumCircuit, shots = 1024): Promise<ExplainCircuitResponse> {
+  return requestJson<ExplainCircuitResponse>('/api/v1/explain-circuit', {
+    method: 'POST',
+    body: { num_qubits: circuit.qubits, gates: toGateInstructions(circuit), shots },
+  })
+}
+
+/* ------------------------------------------------------------------ */
+/*  Challenge submission endpoint                                       */
+/* ------------------------------------------------------------------ */
+
+export interface ChallengeCheckResult {
+  id: string
+  label: string
+  passed: boolean
+}
+
+export interface ChallengeSubmitResponse {
+  challenge_id: string
+  passed: boolean
+  score: number
+  xp: number
+  feedback: string
+  checks: ChallengeCheckResult[]
+}
+
+export async function submitChallenge(
+  challengeId: string,
+  circuit: QuantumCircuit,
+  shots = 4096,
+): Promise<ChallengeSubmitResponse> {
+  return requestJson<ChallengeSubmitResponse>(`/api/v1/challenges/${challengeId}/submit`, {
+    method: 'POST',
+    body: { num_qubits: circuit.qubits, gates: toGateInstructions(circuit), shots },
+  })
+}
+
+export interface ChatMessage {
+  role: 'user' | 'model'
+  content: string
+}
+
+export interface ChatTutorResponse {
+  user_question: string
+  ai_response: string
+}
+
+export async function chatTutor(
+  circuit: QuantumCircuit,
+  question: string,
+  history: ChatMessage[],
+): Promise<ChatTutorResponse> {
+  return requestJson<ChatTutorResponse>('/api/v1/chat-tutor', {
+    method: 'POST',
+    body: {
+      num_qubits: circuit.qubits,
+      gates: toGateInstructions(circuit),
+      user_question: question,
+      chat_history: history,
+    },
+  })
+}
+
+/* ------------------------------------------------------------------ */
+/*  Algorithm template loading                                          */
+/* ------------------------------------------------------------------ */
+
+export interface TemplateGate {
+  name: string
+  targets: number[]
+  controls: number[]
+  params: number[]
+}
+
+export interface TemplateResponse {
+  num_qubits: number
+  qasm: string
+  statevector: Amplitude[]
+  probabilities: Record<string, number>
+  measurement_counts: Record<string, number>
+  entangled: boolean
+  template: {
+    num_qubits: number
+    gates: TemplateGate[]
+    shots: number
+  }
+}
+
+export async function fetchTemplate(algoName: string): Promise<TemplateResponse> {
+  return requestJson<TemplateResponse>(`/api/v1/templates/${algoName}`)
+}
+
+export async function listTemplates(): Promise<{ templates: string[] }> {
+  return requestJson<{ templates: string[] }>('/api/v1/templates')
+}

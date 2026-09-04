@@ -1,91 +1,158 @@
-"""Gemini/PaLM AI tutor service (legacy google-generativeai 0.1.0rc1).
-
-IMPORTANT: this venv pins google-generativeai==0.1.0rc1, which is the PaLM-era
-package. It exposes `generate_text`/`chat` — NOT the modern
-`GenerativeModel`/`generate_content` API (that requires >= 0.4.x / Py3.9+).
-This service talks to the legacy surface but keeps a thin single-prompt
-`generate()` abstraction so callers and stubs stay simple.
-
-The API key lives ONLY here, loaded from the environment. It is never exposed to
-the frontend and never included in API responses.
-"""
 from __future__ import annotations
-from typing import Dict, List, Optional
 
 import os
+from typing import List, Optional
+
+from google import genai
 
 from ..models.ai import ChatMessage
 
+
+# Use an environment variable so you can change the model
+# without modifying the source code.
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
+
+
 class GeminiNotConfiguredError(RuntimeError):
-    """Raised when no usable GEMINI_API_KEY is set or a call fails."""
+    """Raised when Gemini is not configured or the request fails."""
 
-DEFAULT_MODEL = "models/gemini-1.5-flash"
-
-# Sentinel so that GeminiService() (no args) falls back to the environment, while
-# GeminiService(api_key=None) is treated as explicitly unconfigured (used by tests).
-_NO_KEY = object()
 
 class GeminiService:
-    def __init__(self, api_key=_NO_KEY, model: Optional[str] = None):
-        if api_key is _NO_KEY:
-            api_key = os.getenv("GEMINI_API_KEY")
-        self.api_key = api_key
-        self.model = model or os.getenv("GEMINI_MODEL") or DEFAULT_MODEL
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+    ):
+        # Get API key from argument first, then environment
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+
+        # Get model from argument, then environment, then default
+        self.model = (
+            model
+            or os.getenv("GEMINI_MODEL")
+            or DEFAULT_MODEL
+        )
+
         self._configured = bool(self.api_key)
+
+        # Create Gemini client only if API key exists
+        self.client = (
+            genai.Client(api_key=self.api_key)
+            if self._configured
+            else None
+        )
 
     @property
     def configured(self) -> bool:
+        """Return whether Gemini is properly configured."""
         return self._configured
 
-    @staticmethod
-    def _unconfigured_err() -> GeminiNotConfiguredError:
-        return GeminiNotConfiguredError(
-            "GEMINI_API_KEY is not configured. Set it in backend/.env to use the AI tutor."
-        )
-
     def generate(self, prompt: str) -> str:
-        """Send a single prompt and return the model's text reply."""
-        if not self._configured:
-            raise self._unconfigured_err()
-        try:
-            import google.generativeai as genai
+        """
+        Send a prompt to Gemini and return the generated text.
+        """
 
-            genai.configure(api_key=self.api_key)
-            if hasattr(genai, "GenerativeModel"):
-                # Modern SDK path (safety net; not present on 0.1.0rc1)
-                response = genai.GenerativeModel(self.model).generate_content(prompt)
-                text = getattr(response, "text", None)
-            else:
-                # Legacy PaLM-era SDK: google.generativeai.generate_text(...)
-                completion = genai.generate_text(model=self.model, prompt=prompt, max_output_tokens=2048)
-                text = completion.result
+        if not self._configured or self.client is None:
+            raise GeminiNotConfiguredError(
+                "GEMINI_API_KEY is not configured. "
+                "Please add GEMINI_API_KEY to backend/.env"
+            )
+
+        if not prompt or not prompt.strip():
+            raise GeminiNotConfiguredError(
+                "Gemini prompt cannot be empty."
+            )
+
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+            )
+
+            # Gemini response may not contain usable text
+            if not response or not response.text:
+                raise GeminiNotConfiguredError(
+                    "Gemini returned an empty response."
+                )
+
+            return response.text.strip()
+
         except GeminiNotConfiguredError:
             raise
-        except Exception as exc:  # network/auth/model errors bubble to the API layer
-            raise GeminiNotConfiguredError(f"Gemini request failed: {exc}") from exc
 
-        if not text:
-            raise GeminiNotConfiguredError("Gemini returned an empty response.")
-        return str(text)
+        except Exception as exc:
+            raise GeminiNotConfiguredError(
+                f"Gemini request failed: {exc}"
+            ) from exc
 
-    def chat(self, prompt: str, history: List[ChatMessage]) -> str:
-        """Multi-turn chat. Prior turns are folded into a single prompt and sent
-        through generate(), so stubs that override generate() keep working and no
-        stateful session is needed."""
-        if not self._configured:
-            raise self._unconfigured_err()
-        turns = "\n".join(
-            f"Student: {m.content}" if m.role == "user" else f"Tutor: {m.content}"
-            for m in history[-10:]
-        )
-        full = (turns + "\n" + prompt) if turns else prompt
-        return self.generate(full)
+    def chat(
+        self,
+        prompt: str,
+        history: List[ChatMessage],
+    ) -> str:
+        """
+        Generate a tutor response using the conversation history.
+        """
 
-_service: Optional["GeminiService"] = None
+        # Keep only the latest 10 messages so the prompt
+        # doesn't grow unnecessarily large.
+        recent_history = history[-10:]
+
+        conversation = []
+
+        for message in recent_history:
+            role = (
+                "Student"
+                if message.role == "user"
+                else "Tutor"
+            )
+
+            conversation.append(
+                f"{role}: {message.content}"
+            )
+
+        history_text = "\n".join(conversation)
+
+        if history_text:
+            full_prompt = (
+                "You are QubitLabs AI Tutor, an expert tutor "
+                "for quantum computing and quantum physics.\n\n"
+                "Conversation history:\n"
+                f"{history_text}\n\n"
+                "Student's latest question:\n"
+                f"{prompt}\n\n"
+                "Answer the student's question clearly and "
+                "educationally. Explain concepts step-by-step "
+                "when useful. Use equations where appropriate. "
+                "Do not make up facts."
+            )
+        else:
+            full_prompt = (
+                "You are QubitLabs AI Tutor, an expert tutor "
+                "for quantum computing and quantum physics.\n\n"
+                "Student's question:\n"
+                f"{prompt}\n\n"
+                "Answer clearly and educationally. "
+                "Explain concepts step-by-step when useful. "
+                "Use equations where appropriate. "
+                "Do not make up facts."
+            )
+
+        return self.generate(full_prompt)
+
+
+# Singleton service instance
+_service: Optional[GeminiService] = None
+
 
 def get_gemini_service() -> GeminiService:
-    """Dependency singleton. Tests override this via app.dependency_overrides."""
+    """
+    Return the shared GeminiService instance.
+    """
+
     global _service
+
     if _service is None:
         _service = GeminiService()
+
     return _service

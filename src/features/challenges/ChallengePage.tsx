@@ -38,6 +38,8 @@ export default function ChallengePage() {
   const [running, setRunning] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [source, setSource] = useState<'backend' | 'local' | null>(null)
+  const [source, setSource] = useState<'backend' | 'local' | null>(null)
+  const [execTime, setExecTime] = useState<number | null>(null) 
 
   if (!challenge) {
     return (

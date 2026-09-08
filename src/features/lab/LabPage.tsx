@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Aperture, FlaskConical, FolderOpen, Plus, Save, Send, Settings2, Check, CloudOff, BookOpen, Loader2,
 } from 'lucide-react'
@@ -80,6 +80,7 @@ export default function LabPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [apiOnline, setApiOnline] = useState<boolean | null>(null)
   const [loadingTemplate, setLoadingTemplate] = useState(false)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -88,7 +89,10 @@ export default function LabPage() {
       if (alive) setApiOnline(ok)
     }
     void check()
-    return () => { alive = false }
+    return () => {
+      alive = false
+      if (toastTimer.current) clearTimeout(toastTimer.current)
+    }
   }, [])
 
   const backendReachable = source === 'backend' ? true : apiOnline
@@ -97,7 +101,8 @@ export default function LabPage() {
 
   const notify = (msg: string) => {
     setToast(msg)
-    setTimeout(() => setToast(null), 2500)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), 2500)
   }
 
   const loadTemplate = async (algoId: string) => {
@@ -149,7 +154,14 @@ export default function LabPage() {
               value={backend}
               onChange={(e) => setBackend(e.target.value as typeof backend)}
             >
-              {BACKENDS.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+              {BACKENDS.map((b) => {
+                const comingSoon = b.id !== 'qiskit-aer'
+                return (
+                  <option key={b.id} value={b.id} disabled={comingSoon}>
+                    {b.label}{comingSoon ? ' (coming soon)' : ''}
+                  </option>
+                )
+              })}
             </select>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-700/50 bg-mid-800/60 px-3 py-1.5">

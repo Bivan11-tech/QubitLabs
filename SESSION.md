@@ -17,25 +17,28 @@ Implement the QubitLabs AI quantum-learning platform integration per `prompt.doc
 | 6 | AI | **DONE** — Gemini integration complete |
 | 7 | Algorithms | **DONE** — 6 templates working |
 | 8 | Challenges | **DONE** — backend validation working |
-| 9 | Polish | **NOT STARTED** |
-| 10 | Testing | **NOT STARTED** |
+| 9 | Polish | **DONE** — UNCOMMITTED (see below) |
+| 10 | Testing | **PARTIAL** — venv/recreate + test suite done (see below) |
 
 ### What's left in each uncompleted phase
 
-**Phase 9 — Polish**
-- Fix pre-existing TypeScript error: `ChallengePage.tsx:69` (`setExecTime` undefined)
-- Fix pre-existing ESLint errors: `ui.tsx:188,200` and `GatePalette.tsx:11,15`
-- Loading states for: simulation, AI explanation, AI chat, challenge evaluation, template loading
-- Empty states: clean placeholder when no results yet (partially done)
-- Responsive UI audit across all pages
-- Backend offline fallback UI polish
-- Error messages for: invalid JSON, invalid gate, invalid qubit, unsupported operation
-- Toast notification cleanup (timeout not cleared on unmount in LabPage.tsx)
-- Backend selector should show "Coming soon" for PennyLane/Cirq/qBraid (currently cosmetic dropdown)
+**Phase 9 — Polish (DONE — UNCOMMITTED)**
+- Fixed all ESLint errors (now `eslint src` exits 0)
+- Full verification: `tsc -b`, `eslint src`, `vite build` all exit 0
+- `ui.tsx:188,200` / `GatePalette.tsx:11,15` react-refresh errors → moved `useClickOutside`/`useCopy` to `src/lib/hooks.ts` and drag helpers to `src/features/lab/gateDrag.ts`
+- `ResultsPanel.tsx` set-state-in-effect → replaced state clamping with derived `safeWire`
+- Loading states: simulation/AI/template/challenge all already had spinners (verified)
+- Error messages: new `inspectQiskitCode()` in `qiskit.ts` surfaces invalid qubit count, unsupported op, non-numeric angle, no-op warnings; wired into `CodeEditor.tsx`
+- Toast: `LabPage.tsx` clears the timer on unmount (`toastTimer` ref)
+- Backend selector: PennyLane/Cirq/qBraid options now disabled labeled "coming soon"
+- Empty state: `Histogram.tsx` shows a clean placeholder when no basis states
+- Responsive audit: all page grids already collapse (sm:/lg: prefixes) — no changes needed
+- Offline fallback polish: `ResultsPanel.tsx` footer shows the real backend error string
 
 **Phase 10 — Testing**
-- Recreate backend venv with Python 3.11 — **DONE** (`.venv` is now 3.11.16; full suite passes)
+- Recreate backend venv with Python 3.11 — **DONE** (`.venv` is now 3.11.16; full suite passes: **74 passed**)
 - Fix `test_ai.py` to work with new `google-genai` SDK — **DONE** (monkeypatch env key in the 503 test)
+- **REMAINING**: manual golden e2e workflow; verify all 6 algorithm templates + 5 challenges load/simulate through the live backend
 - Run `npm run build` and verify zero errors
 - Run ESLint and fix remaining warnings
 - Execute the golden end-to-end workflow manually
@@ -193,5 +196,7 @@ curl -s -X POST http://localhost:8000/api/v1/explain-circuit -H "Content-Type: a
 - NEVER commit secrets; keep `prompt.docx`/`~$prompt.docx` untracked.
 - Only commit when asked. To commit use the `git -c user.name/email` form above.
 - Venv is now Python 3.11.16 (recreated this session). `requirements.txt` remains the 3.8-compatible pins (Qiskit 0.46/Aer 0.14) — they install and pass on 3.11 but should be upgraded to Qiskit 1.x eventually (not required to pass tests).
-- Known pre-existing ESLint errors: `ui.tsx:188,200` and `GatePalette.tsx:11,15` (react-refresh), plus `ResultsPanel.tsx:21` (set-state-in-effect, from Phase 4 wire clamping).
-- `ChallengePage.tsx` duplicate-`useState` TS error is FIXED (this session).
+- **Phase 9 ESLint errors are all fixed** — `eslint src`, `tsc -b`, and `vite build` all exit 0.
+- `ChallengePage.tsx` duplicate-`useState` TS error is FIXED.
+- Local commit `807412f` "Phase 5 visualization + deploy config + runtime fixes" is NOT yet pushed to origin/main (GitHub needs auth — `gh auth login` or a PAT). Vercel/Railway builds from GitHub, so they still see the stale code until it's pushed.
+- Deploy: `Dockerfile` + `.dockerignore` added for Railway; Vercel needs `VITE_API_URL=https://<railway-domain>` set at build time + Node 22/24, and Railway needs `FRONTEND_URL=https://<vercel-domain>` + `GEMINI_API_KEY`.

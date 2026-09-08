@@ -143,3 +143,51 @@ function splitArgs(input: string): string[] {
   if (cur.trim()) args.push(cur.trim())
   return args
 }
+
+export interface QiskitCodeIssues {
+  errors: string[]
+  warnings: string[]
+}
+
+const MAX_SUPPORTED_QUBITS = 7
+const SUPPORTED_METHODS = Object.keys(parseGate)
+
+function np(x: string | undefined): boolean {
+  return x !== undefined && Number.isNaN(parseFloat(x))
+}
+
+/** Validate editable Qiskit code before applying it, with human-readable errors. */
+export function inspectQiskitCode(code: string): QiskitCodeIssues {
+  const errors: string[] = []
+  const warnings: string[] = []
+
+  const decl = /qc\s*=\s*QuantumCircuit\(\s*(\d+)(?:\s*,\s*\d+)?\s*\)/.exec(code)
+  if (decl) {
+    const n = parseInt(decl[1], 10)
+    if (n < 1 || n > MAX_SUPPORTED_QUBITS) {
+      errors.push(`Invalid qubit count ${n} — the lab supports 1–${MAX_SUPPORTED_QUBITS} qubits.`)
+    }
+  }
+
+  const calls = Array.from(code.matchAll(/qc\.(\w+)\s*\(/g))
+  for (const m of calls) {
+    const method = m[1]
+    const supported = SUPPORTED_METHODS.find((s) => s === method)
+    if (!supported) {
+      errors.push(`Unsupported operation qc.${method}(...) — supported gates: ${SUPPORTED_METHODS.filter((s) => s !== 'measure').join(', ')}.`)
+    }
+  }
+
+  for (const method of ['rx', 'ry', 'rz']) {
+    const m = new RegExp(`qc\\.${method}\\s*\\(\\s*([^,\\)]+)`).exec(code)
+    if (m && np(m[1])) {
+      errors.push(`qc.${method}(...) received a non-numeric angle "${m[1].trim()}".`)
+    }
+  }
+
+  if (errors.length === 0 && code.trim() && calls.length === 0 && !decl) {
+    warnings.push('No QuantumCircuit(qc = ...) or qc.{gate}(...) lines detected — nothing will change on the canvas.')
+  }
+
+  return { errors, warnings }
+}

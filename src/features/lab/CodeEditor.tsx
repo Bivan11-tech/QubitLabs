@@ -1,6 +1,8 @@
 import Editor from '@monaco-editor/react'
+import { useState } from 'react'
 import { useCircuitStore } from '../../store/circuitStore'
 import { Primary, Ghost } from '../../components/ui'
+import { inspectQiskitCode, type QiskitCodeIssues } from '../../lib/quantum/qiskit'
 
 export default function CodeEditor() {
   const code = useCircuitStore((s) => s.code)
@@ -8,6 +10,19 @@ export default function CodeEditor() {
   const applyCode = useCircuitStore((s) => s.applyCode)
   const applyCodeAndRun = useCircuitStore((s) => s.applyCodeAndRun)
   const running = useCircuitStore((s) => s.running)
+  const [issues, setIssues] = useState<QiskitCodeIssues | null>(null)
+
+  const check = () => setIssues(inspectQiskitCode(code))
+
+  const handleApply = () => {
+    check()
+    applyCode()
+  }
+
+  const handleApplyAndRun = () => {
+    check()
+    void applyCodeAndRun()
+  }
 
   return (
     <div className="space-y-3">
@@ -17,12 +32,31 @@ export default function CodeEditor() {
           <div className="text-xs text-slate-400">Edits here round-trip back to the canvas via Apply.</div>
         </div>
         <div className="flex items-center gap-2">
-          <Ghost onClick={applyCode} className="px-4 py-2 text-sm">Apply to canvas</Ghost>
-          <Primary onClick={() => void applyCodeAndRun()} disabled={running} className="px-4 py-2 text-sm">
+          <Ghost onClick={handleApply} className="px-4 py-2 text-sm">Apply to canvas</Ghost>
+          <Primary onClick={handleApplyAndRun} disabled={running} className="px-4 py-2 text-sm">
             {running ? 'Running…' : 'Run Circuit ▶'}
           </Primary>
         </div>
       </div>
+      {issues && issues.errors.length > 0 && (
+        <div className="space-y-1.5 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3.5 py-2.5">
+          {issues.errors.map((e, i) => (
+            <div key={i} className="flex gap-2 text-xs text-rose-200">
+              <span className="shrink-0 font-bold">✕</span> {e}
+            </div>
+          ))}
+        </div>
+      )}
+      {issues && issues.errors.length === 0 && issues.warnings.length > 0 && (
+        <div className="space-y-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3.5 py-2.5">
+          {issues.warnings.map((w, i) => (
+            <div key={i} className="flex gap-2 text-xs text-amber-200">
+              <span className="shrink-0 font-bold">!</span> {w}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-xl border border-slate-700/50">
         <Editor
           height="380px"

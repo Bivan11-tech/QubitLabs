@@ -18,6 +18,14 @@ export default function Histogram({ probabilities, counts, qubits }: Props) {
 
   const max = Math.max(1, ...states.map((k) => probabilities[k] ?? 0))
 
+  if (states.length === 0) {
+    return (
+      <div className="flex items-center justify-center text-sm text-slate-500" style={{ height: 200 }}>
+        No basis states sampled — the circuit is empty. Add gates and run again.
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="flex items-end gap-1" style={{ height: 200 }}>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { AlertTriangle, BarChart3, CircleDot, CloudOff, Info, Zap } from 'lucide-react'
 import { Badge, Tabs, Spinner } from '../../components/ui'
 import { debugCircuit } from '../../lib/quantum/ai'
@@ -17,9 +17,7 @@ export default function ResultsPanel() {
   const [tab, setTab] = useState<Tab>('histogram')
   const [wire, setWire] = useState(0)
 
-  useEffect(() => {
-    if (wire >= circuit.qubits) setWire(0)
-  }, [circuit.qubits, wire])
+  const safeWire = wire < circuit.qubits ? wire : 0
 
   if (!result) {
     return (
@@ -66,7 +64,7 @@ export default function ResultsPanel() {
         {tab === 'state' && <StateVectorTable statevector={result.statevector} />}
         {tab === 'bloch' && (
           <div className="flex justify-center">
-            <BlochSphere statevector={result.statevector} qubits={circuit.qubits} wire={wire} onWire={setWire} blochVectors={result.blochVectors} />
+            <BlochSphere statevector={result.statevector} qubits={circuit.qubits} wire={safeWire} onWire={setWire} blochVectors={result.blochVectors} />
           </div>
         )}
         {tab === 'meta' && (
@@ -128,7 +126,10 @@ export default function ResultsPanel() {
               {source === 'backend' ? (
                 <><Spinner className="h-3 w-3" /> Simulated on the Qiskit backend ({result.backend})</>
               ) : (
-                <><CloudOff size={13} /> Local fallback engine — backend {backendError ? 'unreachable' : 'offline'}</>
+                <div className="flex items-center gap-1.5 text-amber-300/90">
+                  <CloudOff size={13} className="shrink-0" />
+                  <span>Local fallback engine used — {backendError ? backendError : 'backend offline'}</span>
+                </div>
               )}
             </div>
           )}

@@ -1,24 +1,6 @@
 import { GATE_META, PALETTE_GROUPS } from '../../lib/quantum/types'
 import type { GateType } from '../../lib/quantum/types'
-
-export const DRAG_GATE = 'qubitlabs/gate-type'
-
-export interface DragPayload {
-  type: GateType
-  params?: number[]
-}
-
-export function serializeGate(p: DragPayload): string {
-  return JSON.stringify(p)
-}
-
-export function parseGate(raw: string): DragPayload | null {
-  try {
-    return JSON.parse(raw) as DragPayload
-  } catch {
-    return null
-  }
-}
+import { DRAG_GATE, serializeGate } from './gateDrag'
 
 /** Palette of draggable gates; also supports click-to-stamp. */
 export default function GatePalette({

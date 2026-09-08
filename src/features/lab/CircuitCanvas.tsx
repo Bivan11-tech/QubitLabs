@@ -4,7 +4,7 @@ import { useCircuitStore } from '../../store/circuitStore'
 import { layoutCircuit, nextFreeMoment } from '../../lib/quantum/layout'
 import { GATE_META } from '../../lib/quantum/types'
 import type { GateType, QuantumGate } from '../../lib/quantum/types'
-import { DRAG_GATE, parseGate } from './GatePalette'
+import { DRAG_GATE, parseGate } from './gateDrag'
 
 const CELL_H = 48
 const LABEL_W = 58

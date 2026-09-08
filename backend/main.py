@@ -21,7 +21,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
-load_dotenv()  # also try the current working directory
 
 from .api.ai import router as ai_router
 from .api.algorithms import router as algorithms_router

@@ -1,4 +1,4 @@
-import type { Amplitude, BackendId, QuantumCircuit, QuantumGate, SimulationResult } from './quantum/types'
+import type { Amplitude, BackendId, BlochVector, QuantumCircuit, QuantumGate, SimulationResult } from './quantum/types'
 
 /**
  * QubitLabs backend client + gate-format adapter.
@@ -19,7 +19,7 @@ export interface GateInstruction {
   params: number[]
 }
 
-export interface BlochVector {
+export interface BlochVectorWire {
   qubit: number
   coordinates: { x: number; y: number; z: number }
 }
@@ -30,11 +30,12 @@ export interface BackendSimulationResult {
   qasm: string
   statevector: Amplitude[]
   probabilities: Record<string, number>
-  bloch_vectors: BlochVector[]
+  bloch_vectors: BlochVectorWire[]
   measurement_counts: Record<string, number>
   circuit_depth: number
   total_gates: number
   gate_breakdown: Record<string, number>
+  analysis_context?: string
   entangled: boolean
   shots: number
 }
@@ -132,7 +133,18 @@ export function toSimulationResult(
     executionTime,
     backend,
     shots,
+    blochVectors: toBlochVectors(raw.bloch_vectors),
+    circuitDepth: raw.circuit_depth,
+    totalGates: raw.total_gates,
+    gateBreakdown: raw.gate_breakdown,
+    analysisContext: raw.analysis_context,
   }
+}
+
+/** Normalize raw wire-format Bloch vectors into typed UI values. */
+function toBlochVectors(raw: BlochVectorWire[] | undefined): BlochVector[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  return raw.map((b) => ({ qubit: b.qubit, coordinates: { x: b.coordinates.x, y: b.coordinates.y, z: b.coordinates.z } }))
 }
 
 export async function checkBackendHealth(): Promise<boolean> {

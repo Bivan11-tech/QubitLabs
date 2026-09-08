@@ -68,12 +68,15 @@ def test_chat_tutor_with_gemini():
     finally:
         app.dependency_overrides.clear()
 
-def test_explain_circuit_without_key_returns_503():
+def test_explain_circuit_without_key_returns_503(monkeypatch):
+    # The app loads backend/.env into os.environ, but this test must prove the
+    # 503 path works when no key is present at all.
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     app.dependency_overrides[get_gemini_service] = lambda: GeminiService(api_key=None)
     try:
         r = client.post("/api/v1/explain-circuit", json=BELL_BODY)
         assert r.status_code == 503
-        assert "GEMINI_API_KEY" in r.json()["detail"]
+        assert "unavailable" in r.json()["detail"].lower()
     finally:
         app.dependency_overrides.clear()
 

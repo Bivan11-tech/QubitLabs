@@ -6,7 +6,7 @@ export default function CodeEditor() {
   const code = useCircuitStore((s) => s.code)
   const setCode = useCircuitStore((s) => s.setCode)
   const applyCode = useCircuitStore((s) => s.applyCode)
-  const run = useCircuitStore((s) => s.run)
+  const applyCodeAndRun = useCircuitStore((s) => s.applyCodeAndRun)
   const running = useCircuitStore((s) => s.running)
 
   return (
@@ -18,7 +18,7 @@ export default function CodeEditor() {
         </div>
         <div className="flex items-center gap-2">
           <Ghost onClick={applyCode} className="px-4 py-2 text-sm">Apply to canvas</Ghost>
-          <Primary onClick={() => void run()} disabled={running} className="px-4 py-2 text-sm">
+          <Primary onClick={() => void applyCodeAndRun()} disabled={running} className="px-4 py-2 text-sm">
             {running ? 'Running…' : 'Run Circuit ▶'}
           </Primary>
         </div>

@@ -211,7 +211,7 @@ export function simulateCircuit(circuit: QuantumCircuit, backend: BackendId, sho
   const probabilities = state.map((c) => c.re * c.re + c.im * c.im)
 
   const counts: Record<string, number> = {}
-  const rand = mulberry32(0xc0ffee)
+  const rand = mulberry32(Date.now() ^ (Math.random() * 0xffffffff))
   for (let s = 0; s < shots; s++) {
     const r = rand()
     let acc = 0

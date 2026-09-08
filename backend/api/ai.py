@@ -15,11 +15,14 @@ from ..quantum.analysis import analyze_request
 from ..quantum.simulator import run_simulation
 from ..quantum.validation import CircuitValidationError
 from ..services.gemini import GeminiNotConfiguredError, GeminiService, get_gemini_service
+
 router = APIRouter(prefix="/api/v1", tags=["ai"])
 
 
 def _gemini_failure(exc: Exception) -> HTTPException:
-    return HTTPException(status_code=503, detail=str(exc))
+    return HTTPException(status_code=503, detail="AI tutor is unavailable. Please try again later.")
+
+
 @router.post("/explain-circuit")
 def explain_circuit(
     req: CircuitRequest,
@@ -63,6 +66,7 @@ def explain_circuit(
         },
         "ai_explanation": explanation,
     }
+
 
 @router.post("/chat-tutor")
 def chat_tutor(

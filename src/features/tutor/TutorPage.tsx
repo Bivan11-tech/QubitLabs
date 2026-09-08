@@ -23,7 +23,7 @@ export default function TutorPage() {
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>(quickPrompts())
-  const [aiSource, setAiSource] = useState<'backend' | 'local'>('backend')
+  const [aiSource, setAiSource] = useState<'backend' | 'local'>('local')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

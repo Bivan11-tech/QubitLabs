@@ -35,6 +35,7 @@ interface CircuitState {
   setCode: (c: string) => void
   applyCode: () => void
   run: () => Promise<void>
+  applyCodeAndRun: () => Promise<void>
   saveCircuit: () => void
   loadCircuit: (c: QuantumCircuit) => void
   exportJson: () => string
@@ -141,11 +142,23 @@ export const useCircuitStore = create<CircuitState>()(
         set({ circuit: parsed, mode: 'visual', result: null })
       },
 
+      applyCodeAndRun: async () => {
+        const parsed = qiskitToCircuit(get().code, get().circuit.name)
+        set({ circuit: parsed, mode: 'visual' })
+        await get().run()
+      },
+
       run: async () => {
         if (get().running) return
         set({ running: true })
-        const { result, source, backendError } = await simulateWithSource(get().circuit, get().backend, get().shots)
-        set({ result, running: false, source, backendError: backendError ?? null })
+        try {
+          const { result, source, backendError } = await simulateWithSource(get().circuit, get().backend, get().shots)
+          set({ result, source, backendError: backendError ?? null })
+        } catch {
+          set({ source: 'local', backendError: 'Unexpected simulation error' })
+        } finally {
+          set({ running: false })
+        }
       },
 
       saveCircuit: () => {

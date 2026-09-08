@@ -155,7 +155,13 @@ def run_circuit(qc: QuantumCircuit, shots: int) -> dict:
     counts = sim["measurement_counts"]
 
     bloch = compute_bloch_vectors(unitary)
-    entangled = reduced_purity(unitary) < 0.9999
+    purity = reduced_purity(unitary)
+    entangled = purity < 0.9999
+
+    active = sum(
+        1 for a in statevector_amplitudes(sv, num_qubits)
+        if abs(a["re"]) > 1e-5 or abs(a["im"]) > 1e-5
+    )
 
     return {
         "num_qubits": num_qubits,
@@ -168,5 +174,31 @@ def run_circuit(qc: QuantumCircuit, shots: int) -> dict:
         "total_gates": total_gates,
         "gate_breakdown": gate_breakdown,
         "entangled": entangled,
+        "analysis_context": build_analysis_context(
+            num_qubits, gate_breakdown, circuit_depth, total_gates,
+            entangled, purity, active, probabilities,
+        ),
         "shots": shots,
     }
+
+def build_analysis_context(
+    num_qubits, gate_breakdown, circuit_depth, total_gates,
+    entangled, purity, active, probabilities,
+) -> str:
+    """Human-readable circuit summary shared by /simulate and the AI analysis.
+
+    Mirrors backend.quantum.analysis.analyze_request so the frontend can surface
+    real (never fabricated) diagnostics in its debugger.
+    """
+    from .analysis import ENTANGLING_GATE_NAMES
+
+    entangling_present = any(g in ENTANGLING_GATE_NAMES for g in gate_breakdown)
+    return (
+        f"Circuit with {num_qubits} qubits, depth {circuit_depth}, "
+        f"and {total_gates} gate(s) ({gate_breakdown}). "
+        f"Entangling gate present: {entangling_present}. "
+        f"Resulting state appears entangled: {entangled} "
+        f"(min reduced purity {round(purity, 6)}). "
+        f"{active} active basis state(s); "
+        f"probabilities: {probabilities}."
+    )

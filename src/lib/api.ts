@@ -30,14 +30,7 @@ export async function simulateWithSource(
   } catch (err) {
     const backendError = err instanceof Error ? err.message : String(err)
     const result = simulateCircuit(circuit, backend, shots)
+    result.backend = 'local-engine'
     return { result, source: 'local', backendError }
   }
-}
-
-export async function simulate(
-  circuit: QuantumCircuit,
-  backend: BackendId,
-  shots: number,
-): Promise<SimulationResult> {
-  return (await simulateWithSource(circuit, backend, shots)).result
 }

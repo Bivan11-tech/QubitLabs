@@ -1,20 +1,42 @@
+"""Gemini AI tutor service using the Google GenAI SDK.
+
+The API key lives ONLY here, loaded from the environment. It is never exposed
+to the frontend and never included in API responses.
+"""
 from __future__ import annotations
 
 import os
+import re
 from typing import List, Optional
 
 from google import genai
+from google.genai import types
 
 from ..models.ai import ChatMessage
 
+DEFAULT_MODEL = "gemini-2.0-flash"
+REQUEST_TIMEOUT = 30
 
-# Use an environment variable so you can change the model
-# without modifying the source code.
-DEFAULT_MODEL = "gemini-3.5-flash-lite"
+# Characters that could be used for prompt-injection delimiter spoofing.
+_INJECTION_PATTERNS = [
+    re.compile(r"(?i)ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?)"),
+    re.compile(r"(?i)you\s+are\s+now\s+(a|an|the)\s+"),
+    re.compile(r"(?i)system\s*:\s*"),
+    re.compile(r"(?i)assistant\s*:\s*"),
+    re.compile(r"(?i)###\s*(system|instruction|prompt)"),
+]
 
 
 class GeminiNotConfiguredError(RuntimeError):
     """Raised when Gemini is not configured or the request fails."""
+
+
+def _sanitize_user_input(text: str) -> str:
+    """Strip patterns that attempt to override the system prompt."""
+    cleaned = text
+    for pattern in _INJECTION_PATTERNS:
+        cleaned = pattern.sub("[redacted]", cleaned)
+    return cleaned
 
 
 class GeminiService:
@@ -23,10 +45,7 @@ class GeminiService:
         api_key: Optional[str] = None,
         model: Optional[str] = None,
     ):
-        # Get API key from argument first, then environment
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-
-        # Get model from argument, then environment, then default
         self.model = (
             model
             or os.getenv("GEMINI_MODEL")
@@ -35,7 +54,6 @@ class GeminiService:
 
         self._configured = bool(self.api_key)
 
-        # Create Gemini client only if API key exists
         self.client = (
             genai.Client(api_key=self.api_key)
             if self._configured
@@ -44,14 +62,9 @@ class GeminiService:
 
     @property
     def configured(self) -> bool:
-        """Return whether Gemini is properly configured."""
         return self._configured
 
     def generate(self, prompt: str) -> str:
-        """
-        Send a prompt to Gemini and return the generated text.
-        """
-
         if not self._configured or self.client is None:
             raise GeminiNotConfiguredError(
                 "GEMINI_API_KEY is not configured. "
@@ -67,9 +80,11 @@ class GeminiService:
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=prompt,
+                config=types.GenerateContentConfig(
+                    max_output_tokens=2048,
+                ),
             )
 
-            # Gemini response may not contain usable text
             if not response or not response.text:
                 raise GeminiNotConfiguredError(
                     "Gemini returned an empty response."
@@ -82,7 +97,7 @@ class GeminiService:
 
         except Exception as exc:
             raise GeminiNotConfiguredError(
-                f"Gemini request failed: {exc}"
+                f"Gemini request failed: {type(exc).__name__}"
             ) from exc
 
     def chat(
@@ -90,28 +105,21 @@ class GeminiService:
         prompt: str,
         history: List[ChatMessage],
     ) -> str:
-        """
-        Generate a tutor response using the conversation history.
-        """
-
-        # Keep only the latest 10 messages so the prompt
-        # doesn't grow unnecessarily large.
         recent_history = history[-10:]
 
         conversation = []
-
         for message in recent_history:
+            sanitized = _sanitize_user_input(message.content)
             role = (
                 "Student"
                 if message.role == "user"
                 else "Tutor"
             )
-
-            conversation.append(
-                f"{role}: {message.content}"
-            )
+            conversation.append(f"{role}: {sanitized}")
 
         history_text = "\n".join(conversation)
+
+        sanitized_prompt = _sanitize_user_input(prompt)
 
         if history_text:
             full_prompt = (
@@ -120,7 +128,7 @@ class GeminiService:
                 "Conversation history:\n"
                 f"{history_text}\n\n"
                 "Student's latest question:\n"
-                f"{prompt}\n\n"
+                f"{sanitized_prompt}\n\n"
                 "Answer the student's question clearly and "
                 "educationally. Explain concepts step-by-step "
                 "when useful. Use equations where appropriate. "
@@ -131,7 +139,7 @@ class GeminiService:
                 "You are QubitLabs AI Tutor, an expert tutor "
                 "for quantum computing and quantum physics.\n\n"
                 "Student's question:\n"
-                f"{prompt}\n\n"
+                f"{sanitized_prompt}\n\n"
                 "Answer clearly and educationally. "
                 "Explain concepts step-by-step when useful. "
                 "Use equations where appropriate. "
@@ -141,18 +149,22 @@ class GeminiService:
         return self.generate(full_prompt)
 
 
-# Singleton service instance
 _service: Optional[GeminiService] = None
 
 
 def get_gemini_service() -> GeminiService:
-    """
-    Return the shared GeminiService instance.
-    """
-
     global _service
 
     if _service is None:
-        _service = GeminiService()
+        try:
+            _service = GeminiService()
+        except Exception:
+            _service = GeminiService(api_key=None)
 
     return _service
+
+
+def reset_gemini_service() -> None:
+    """Reset the singleton. Useful for tests."""
+    global _service
+    _service = None

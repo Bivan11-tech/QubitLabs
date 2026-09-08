@@ -37,9 +37,7 @@ export default function ChallengePage() {
   const [checks, setChecks] = useState<Check[] | null>(null)
   const [running, setRunning] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
-  const [source, setSource] = useState<'backend' | 'local' | null>(null)
-  const [source, setSource] = useState<'backend' | 'local' | null>(null)
-  const [execTime, setExecTime] = useState<number | null>(null) 
+  const [source, setSource] = useState<'backend' | 'local' | null>(null) 
 
   if (!challenge) {
     return (
@@ -68,7 +66,6 @@ export default function ChallengePage() {
       const next = res.checks.map((c) => ({ id: c.id, label: c.label, pass: c.passed }))
       setChecks(next)
       setFeedback(res.feedback)
-      setExecTime(null)
       setSource('backend')
       if (res.passed && !done) {
         completeChallenge(challenge.id, challenge.xp, challenge.badgeId)

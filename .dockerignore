@@ -1,0 +1,7 @@
+.git
+.venv
+dist
+node_modules
+backend/.env
+*.md
+prompt.docx

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Amplitude } from '../../../lib/quantum/types'
+import type { Amplitude, BlochVector } from '../../../lib/quantum/types'
 import { blochVector } from '../../../lib/quantum/simulator'
 
 interface Props {
@@ -7,11 +7,17 @@ interface Props {
   qubits: number
   wire: number
   onWire: (w: number) => void
+  /** Real Bloch vectors from the backend — preferred over client-side math. */
+  blochVectors?: BlochVector[]
 }
 
-export default function BlochSphere({ statevector, qubits, wire, onWire }: Props) {
+export default function BlochSphere({ statevector, qubits, wire, onWire, blochVectors }: Props) {
   const state = useMemo(() => statevector.map((a) => ({ re: a.re, im: a.im })), [statevector])
-  const v = useMemo(() => blochVector(state, qubits, wire), [state, qubits, wire])
+  const v = useMemo(() => {
+    const real = blochVectors?.find((bv) => bv.qubit === wire)
+    if (real) return real.coordinates
+    return blochVector(state, qubits, wire)
+  }, [blochVectors, state, qubits, wire])
   const [t, setT] = useState(0)
 
   useEffect(() => {

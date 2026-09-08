@@ -22,18 +22,17 @@ export interface QuantumCircuit {
   gates: QuantumGate[]
 }
 
-export type BackendId = 'qiskit-aer' | 'pennylane' | 'cirq' | 'qbraid'
-
-export interface SimRequest {
-  circuit: QuantumCircuit
-  backend: BackendId
-  shots: number
-}
+export type BackendId = 'qiskit-aer' | 'pennylane' | 'cirq' | 'qbraid' | 'local-engine'
 
 export interface Amplitude {
   basis: string
   re: number
   im: number
+}
+
+export interface BlochVector {
+  qubit: number
+  coordinates: { x: number; y: number; z: number }
 }
 
 export interface SimulationResult {
@@ -44,6 +43,14 @@ export interface SimulationResult {
   executionTime: number
   backend: BackendId
   shots: number
+  /** Real Bloch vectors from the backend (local engine has none). */
+  blochVectors?: BlochVector[]
+  /** Qiskit-reported statistics (backend source only). */
+  circuitDepth?: number
+  totalGates?: number
+  gateBreakdown?: Record<string, number>
+  /** Backend analysis summary string (backend source only). */
+  analysisContext?: string
 }
 
 export const BACKENDS: { id: BackendId; label: string; blurb: string }[] = [

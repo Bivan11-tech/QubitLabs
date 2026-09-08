@@ -46,14 +46,9 @@ Run full analysis for a circuit (used by /analyze-circuit and the AI)."""
         for b, p in zip(basis_strings(req.num_qubits), sim["probabilities"].values())
     }
 
-    context = (
-        f"Circuit with {req.num_qubits} qubits, depth {circuit_depth}, "
-        f"and {total_gates} gate(s) ({gate_breakdown}). "
-        f"Entangling gate present: {entangling_gate_present(req)}. "
-        f"Resulting state appears entangled: {has_entanglement} "
-        f"(min reduced purity {round(purity, 6)}). "
-        f"{active} active basis state(s); "
-        f"probabilities: {probs}."
+    context = _context_from_stats(
+        req, gate_breakdown, circuit_depth, total_gates,
+        has_entanglement, purity, active, probs,
     )
 
     return {
@@ -68,3 +63,21 @@ Run full analysis for a circuit (used by /analyze-circuit and the AI)."""
         "qasm": sim["qasm"],
         "analysis_context": context,
     }
+
+def _context_from_stats(
+    req: CircuitRequest,
+    gate_breakdown: dict,
+    circuit_depth: int,
+    total_gates: int,
+    has_entanglement: bool,
+    purity: float,
+    active: int,
+    probs: dict,
+) -> str:
+    """Shared text summary builder used by /simulate and /analyze-circuit."""
+    from ..quantum.simulator import build_analysis_context
+
+    return build_analysis_context(
+        req.num_qubits, gate_breakdown, circuit_depth, total_gates,
+        has_entanglement, purity, active, probs,
+    )

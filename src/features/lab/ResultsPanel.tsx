@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, BarChart3, CircleDot, CloudOff, Info, Zap } from 'lucide-react'
 import { Badge, Tabs, Spinner } from '../../components/ui'
 import { debugCircuit } from '../../lib/quantum/ai'
@@ -17,6 +17,10 @@ export default function ResultsPanel() {
   const [tab, setTab] = useState<Tab>('histogram')
   const [wire, setWire] = useState(0)
 
+  useEffect(() => {
+    if (wire >= circuit.qubits) setWire(0)
+  }, [circuit.qubits, wire])
+
   if (!result) {
     return (
       <div className="lab-panel flex min-h-[120px] items-center justify-center gap-2 p-6 text-sm text-slate-400">
@@ -30,6 +34,9 @@ export default function ResultsPanel() {
   const warnings = issues.filter((i) => i.level !== 'info')
   const infos = issues.filter((i) => i.level === 'info')
   const gateCount = circuit.gates.filter((g) => g.type !== 'Measure').length
+  const fromBackend = source === 'backend'
+  const depth = result.circuitDepth
+  const totalGates = result.totalGates
 
   return (
     <div className="lab-panel overflow-hidden">
@@ -59,20 +66,43 @@ export default function ResultsPanel() {
         {tab === 'state' && <StateVectorTable statevector={result.statevector} />}
         {tab === 'bloch' && (
           <div className="flex justify-center">
-            <BlochSphere statevector={result.statevector} qubits={circuit.qubits} wire={wire} onWire={setWire} />
+            <BlochSphere statevector={result.statevector} qubits={circuit.qubits} wire={wire} onWire={setWire} blochVectors={result.blochVectors} />
           </div>
         )}
         {tab === 'meta' && (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between border-b border-slate-800 pb-1.5"><span className="text-slate-400">Backend</span><span className="font-mono text-white">{result.backend}</span></div>
+              <div className="flex justify-between border-b border-slate-800 pb-1.5"><span className="text-slate-400">Backend</span><span className="font-mono text-white">{result.backend === 'local-engine' ? 'Local engine' : result.backend}</span></div>
               <div className="flex justify-between border-b border-slate-800 pb-1.5"><span className="text-slate-400">Shots</span><span className="font-mono text-white">{result.shots.toLocaleString()}</span></div>
               <div className="flex justify-between border-b border-slate-800 pb-1.5"><span className="text-slate-400">Qubits</span><span className="font-mono text-white">{circuit.qubits}</span></div>
-              <div className="flex justify-between border-b border-slate-800 pb-1.5"><span className="text-slate-400">Gates</span><span className="font-mono text-white">{gateCount}</span></div>
+              <div className="flex justify-between border-b border-slate-800 pb-1.5"><span className="text-slate-400">Gates</span><span className="font-mono text-white">{totalGates ?? gateCount}</span></div>
+              <div className="flex justify-between border-b border-slate-800 pb-1.5"><span className="text-slate-400">Circuit depth</span><span className="font-mono text-white">{depth !== undefined ? depth : '—'}</span></div>
+              {fromBackend && result.gateBreakdown && Object.keys(result.gateBreakdown).length > 0 && (
+                <div className="flex justify-between gap-3 border-b border-slate-800 pb-1.5">
+                  <span className="text-slate-400">Gate breakdown</span>
+                  <span className="font-mono text-right text-xs text-white">
+                    {Object.entries(result.gateBreakdown).map(([name, count]) => `${name}×${count}`).join(', ')}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between border-b border-slate-800 pb-1.5"><span className="text-slate-400">Execution time</span><span className="font-mono text-white">{result.executionTime}s</span></div>
               <div className="flex justify-between border-b border-slate-800 pb-1.5"><span className="text-slate-400">Entanglement</span><span className="font-mono text-white">{result.entangled ? 'YES' : 'no'}</span></div>
+              {!fromBackend && (
+                <div className="flex justify-between border-b border-slate-800 pb-1.5">
+                  <span className="text-slate-400">Stats source</span>
+                  <span className="font-mono text-xs text-slate-300">computed locally</span>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
+              {result.analysisContext && (
+                <div className="rounded-lg border border-accent-400/25 bg-accent-400/10 p-3 text-xs leading-relaxed text-accent-100">
+                  <div className="mb-1 flex items-center gap-1.5 font-medium text-accent-300">
+                    <Zap size={13} /> Qiskit analysis
+                  </div>
+                  {result.analysisContext}
+                </div>
+              )}
               {warnings.map((w, i) => (
                 <div key={i} className="flex gap-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200">
                   <AlertTriangle size={14} className="shrink-0" /> {w.message}
@@ -98,7 +128,7 @@ export default function ResultsPanel() {
               {source === 'backend' ? (
                 <><Spinner className="h-3 w-3" /> Simulated on the Qiskit backend ({result.backend})</>
               ) : (
-                <><CloudOff size={13} /> Local fallback engine — API {backendError ? 'error' : 'offline'}</>
+                <><CloudOff size={13} /> Local fallback engine — backend {backendError ? 'unreachable' : 'offline'}</>
               )}
             </div>
           )}
